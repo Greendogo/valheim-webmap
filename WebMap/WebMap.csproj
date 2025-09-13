@@ -3,7 +3,7 @@
   <PropertyGroup>
     <Version>2.7.1</Version>
     <OutputType>Library</OutputType>
-    <TargetFramework>net48</TargetFramework>
+    <TargetFramework>net50</TargetFramework>
     <LangVersion>9.0</LangVersion>
     <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
     <Copyright>(c) 2025 Various Authors</Copyright>
@@ -32,6 +32,7 @@
   </PropertyGroup>
   <PropertyGroup>
     <TempDir>$([System.IO.Path]::GetTempPath())</TempDir>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="0Harmony">
@@ -85,6 +86,6 @@
     <Reference Include="WebsocketSharp">
       <HintPath>..\libs\websocket-sharp.dll</HintPath>
     </Reference>
-    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="Microsoft.CSharp, Version=5.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a" />
   </ItemGroup>
 </Project>

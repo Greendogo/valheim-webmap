@@ -308,6 +308,34 @@ namespace WebMap
                     res.ContentLength64 = textBytes.Length;
                     res.Close(textBytes, true);
                     return true;
+                case "/locations":
+                    res.Headers.Add(HttpResponseHeader.CacheControl, "no-cache");
+                    res.ContentType = "application/json";
+                    res.StatusCode = 200;
+                    StringBuilder locSb = new StringBuilder("[");
+                    bool firstLoc = true;
+                    if (ZoneSystem.instance != null && ZoneSystem.instance.m_locationInstances != null)
+                    {
+                        foreach (var kv in ZoneSystem.instance.m_locationInstances)
+                        {
+                            var inst = kv.Value;
+                            if (inst.m_location == null) continue;
+                            if (!firstLoc) locSb.Append(",");
+                            firstLoc = false;
+                            locSb.Append("{\"prefab\":\"");
+                            locSb.Append(inst.m_location.m_prefabName);
+                            locSb.Append("\",\"x\":");
+                            locSb.Append(FormattableString.Invariant($"{inst.m_position.x:0.##}"));
+                            locSb.Append(",\"z\":");
+                            locSb.Append(FormattableString.Invariant($"{inst.m_position.z:0.##}"));
+                            locSb.Append("}");
+                        }
+                    }
+                    locSb.Append("]");
+                    textBytes = Encoding.UTF8.GetBytes(locSb.ToString());
+                    res.ContentLength64 = textBytes.Length;
+                    res.Close(textBytes, true);
+                    return true;
             }
 
             return false;

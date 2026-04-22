@@ -86,5 +86,18 @@
       <HintPath>..\libs\websocket-sharp.dll</HintPath>
     </Reference>
     <Reference Include="Microsoft.CSharp" />
+    <Reference Include="netstandard">
+      <HintPath Condition="Exists('/opt/steam/libs/netstandard.dll')">/opt/steam/libs/netstandard.dll</HintPath>
+      <HintPath Condition="Exists('..\libs\valheim\netstandard.dll')">..\libs\valheim\netstandard.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="System.Memory">
+      <HintPath>..\libs\System.Memory.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="System.Runtime.CompilerServices.Unsafe">
+      <HintPath>..\libs\System.Runtime.CompilerServices.Unsafe.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
   </ItemGroup>
 </Project>

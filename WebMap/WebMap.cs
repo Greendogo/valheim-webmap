@@ -147,7 +147,8 @@ namespace WebMap
             {
                 Texture2D fogTexture = new Texture2D(WebMapConfig.TEXTURE_SIZE, WebMapConfig.TEXTURE_SIZE);
                 byte[] fogBytes = File.ReadAllBytes(fogImagePath);
-                fogTexture.LoadImage(fogBytes);
+                // Avoid compile-time overload ambiguity vs. Unity 6's ReadOnlySpan<byte> overload:
+                typeof(UnityEngine.ImageConversion).GetMethod("LoadImage", new System.Type[] { typeof(UnityEngine.Texture2D), typeof(byte[]) }).Invoke(null, new object[] { fogTexture, fogBytes });
                 mapDataServer.fogTexture = fogTexture;
             }
             catch (Exception e)

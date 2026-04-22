@@ -336,6 +336,28 @@ namespace WebMap
                     res.ContentLength64 = textBytes.Length;
                     res.Close(textBytes, true);
                     return true;
+                case "/globalkeys":
+                    res.Headers.Add(HttpResponseHeader.CacheControl, "no-cache");
+                    res.ContentType = "application/json";
+                    res.StatusCode = 200;
+                    StringBuilder keysSb = new StringBuilder("[");
+                    bool firstKey = true;
+                    if (ZoneSystem.instance != null)
+                    {
+                        foreach (string key in ZoneSystem.instance.GetGlobalKeys())
+                        {
+                            if (!firstKey) keysSb.Append(",");
+                            firstKey = false;
+                            keysSb.Append("\"");
+                            keysSb.Append(key.Replace("\\", "\\\\").Replace("\"", "\\\""));
+                            keysSb.Append("\"");
+                        }
+                    }
+                    keysSb.Append("]");
+                    textBytes = Encoding.UTF8.GetBytes(keysSb.ToString());
+                    res.ContentLength64 = textBytes.Length;
+                    res.Close(textBytes, true);
+                    return true;
             }
 
             return false;

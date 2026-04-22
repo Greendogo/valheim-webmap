@@ -542,6 +542,17 @@ namespace WebMap
                     ZLog.Log("HandleRoutedRPC: " + methodName);
                 }
 
+                // Sniff RPCs that look pin-related so we can wire them up once
+                // we know their exact names on the current Valheim build.
+                if (methodName != null)
+                {
+                    string lower = methodName.ToLower();
+                    if ((lower.Contains("pin") || lower.Contains("map")) && !Array.Exists(ignoreRpc, x => x == methodName))
+                    {
+                        ZLog.Log("WebMap: (pin-sniffer) " + methodName + " from peer " + data.m_senderPeerID);
+                    }
+                }
+
                 ZNetPeer peer = ZNet.instance.GetPeer(data.m_senderPeerID);
                 string steamid = "";
                 try

@@ -168,6 +168,10 @@ namespace WebMap
                 if (zdoData != null)
                 {
                     Vector3 pos = zdoData.GetPosition();
+                    // Yaw in degrees, [0,360). Appended as a third CSV field on
+                    // the position line — old web clients split on "," and read
+                    // only the first two fields, so this is wire-backward-compat.
+                    float yaw = zdoData.GetRotation().eulerAngles.y;
                     int maxHealth = (int)Math.Ceiling(zdoData.GetFloat("max_health", 25));
                     int health = (int)Math.Ceiling(zdoData.GetFloat("health", maxHealth));
                     int dead = zdoData.GetBool("dead") ? 1 : 0;
@@ -180,7 +184,7 @@ namespace WebMap
                     if (!player.m_publicRefPos)
                         dataString += "hidden\n";
                     if (player.m_publicRefPos || WebMapConfig.ALWAYS_VISIBLE || WebMapConfig.ALWAYS_MAP)
-                        dataString += FormattableString.Invariant($"{pos.x:0.##},{pos.z:0.##}\n");
+                        dataString += FormattableString.Invariant($"{pos.x:0.##},{pos.z:0.##},{yaw:0.#}\n");
                     dataString += $"{dead}{pvp}{inbed}\n\n";
                 }
 

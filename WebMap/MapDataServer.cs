@@ -362,6 +362,60 @@ namespace WebMap
                     res.ContentLength64 = textBytes.Length;
                     res.Close(textBytes, true);
                     return true;
+                case "/save-now":
+                    // Forces an in-game save then waits for it to finish.
+                    // Valheim's dedicated server only auto-saves every ~20 min
+                    // otherwise; with this hook the admin sidecar's "Snapshot
+                    // Now" button can capture state that's truly current
+                    // rather than ≤20 min old. Uses ZNet.ConsoleSave (the
+                    // same entry point the in-game `save` command uses),
+                    // which spawns a worker thread; we poll m_saveThread
+                    // until it terminates (publicize makes it accessible)
+                    // with a 30 s safety timeout so the HTTP request can't
+                    // hang forever if the save deadlocks.
+                    res.Headers.Add(HttpResponseHeader.CacheControl, "no-cache");
+                    res.ContentType = "application/json";
+                    if (ZNet.instance == null)
+                    {
+                        res.StatusCode = 503;
+                        textBytes = Encoding.UTF8.GetBytes("{\"error\":\"ZNet not ready\"}");
+                        res.ContentLength64 = textBytes.Length;
+                        res.Close(textBytes, true);
+                        return true;
+                    }
+                    try
+                    {
+                        DateTime started = DateTime.UtcNow;
+                        ZNet.instance.ConsoleSave();
+                        // Valheim spawns m_saveThread when ConsoleSave runs;
+                        // it nulls out / exits when the save completes.
+                        DateTime deadline = DateTime.UtcNow.AddSeconds(30);
+                        while (ZNet.instance.m_saveThread != null
+                               && ZNet.instance.m_saveThread.IsAlive
+                               && DateTime.UtcNow < deadline)
+                        {
+                            System.Threading.Thread.Sleep(100);
+                        }
+                        bool timedOut = ZNet.instance.m_saveThread != null
+                                        && ZNet.instance.m_saveThread.IsAlive;
+                        double elapsed = (DateTime.UtcNow - started).TotalMilliseconds;
+                        res.StatusCode = timedOut ? 504 : 200;
+                        string body = timedOut
+                            ? FormattableString.Invariant($"{{\"error\":\"save still running after 30s\",\"elapsedMs\":{elapsed:0}}}")
+                            : FormattableString.Invariant($"{{\"ok\":true,\"elapsedMs\":{elapsed:0}}}");
+                        textBytes = Encoding.UTF8.GetBytes(body);
+                        res.ContentLength64 = textBytes.Length;
+                        res.Close(textBytes, true);
+                    }
+                    catch (Exception ex)
+                    {
+                        ZLog.LogError("WebMap: /save-now failed: " + ex);
+                        res.StatusCode = 500;
+                        textBytes = Encoding.UTF8.GetBytes("{\"error\":\"" + ex.Message.Replace("\"", "'") + "\"}");
+                        res.ContentLength64 = textBytes.Length;
+                        res.Close(textBytes, true);
+                    }
+                    return true;
                 case "/worldtime":
                     // Current in-game day + fraction of day (0..1, where 0.5 ≈ noon).
                     // Valheim derives day from ZNet.GetTimeSeconds() / day length;

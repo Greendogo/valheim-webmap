@@ -386,8 +386,15 @@ namespace WebMap
                     try
                     {
                         DateTime started = DateTime.UtcNow;
-                        ZNet.instance.SaveWorld();
-                        // SaveWorld spawns m_saveThread; poll until it exits.
+                        // sync=true blocks until the save thread finishes. The
+                        // HTTP request therefore returns only after bytes are
+                        // durably on disk, which is exactly what the admin
+                        // sidecar needs before triggering the zip.
+                        ZNet.instance.SaveWorld(sync: true);
+                        // Belt-and-suspenders: sync=true should guarantee the
+                        // thread completed, but if SaveWorld has any background
+                        // task still running (some Valheim versions did), give
+                        // it up to 30 s to drain before returning.
                         DateTime deadline = DateTime.UtcNow.AddSeconds(30);
                         while (ZNet.instance.m_saveThread != null
                                && ZNet.instance.m_saveThread.IsAlive

@@ -362,6 +362,28 @@ namespace WebMap
                     res.ContentLength64 = textBytes.Length;
                     res.Close(textBytes, true);
                     return true;
+                case "/worldtime":
+                    // Current in-game day + fraction of day (0..1, where 0.5 ≈ noon).
+                    // Valheim derives day from ZNet.GetTimeSeconds() / day length;
+                    // EnvMan is the component that exposes the derived values.
+                    res.Headers.Add(HttpResponseHeader.CacheControl, "no-cache");
+                    res.ContentType = "application/json";
+                    res.StatusCode = 200;
+                    int day = 0;
+                    float dayFraction = 0f;
+                    bool isNight = false;
+                    if (EnvMan.instance != null)
+                    {
+                        day = EnvMan.instance.GetCurrentDay();
+                        dayFraction = EnvMan.instance.GetDayFraction();
+                        isNight = EnvMan.IsNight();
+                    }
+                    string worldTimeJson = FormattableString.Invariant(
+                        $"{{\"day\":{day},\"dayFraction\":{dayFraction:0.####},\"isNight\":{(isNight ? "true" : "false")}}}");
+                    textBytes = Encoding.UTF8.GetBytes(worldTimeJson);
+                    res.ContentLength64 = textBytes.Length;
+                    res.Close(textBytes, true);
+                    return true;
             }
 
             return false;

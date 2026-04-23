@@ -386,9 +386,8 @@ namespace WebMap
                     try
                     {
                         DateTime started = DateTime.UtcNow;
-                        ZNet.instance.ConsoleSave();
-                        // Valheim spawns m_saveThread when ConsoleSave runs;
-                        // it nulls out / exits when the save completes.
+                        ZNet.instance.SaveWorld();
+                        // SaveWorld spawns m_saveThread; poll until it exits.
                         DateTime deadline = DateTime.UtcNow.AddSeconds(30);
                         while (ZNet.instance.m_saveThread != null
                                && ZNet.instance.m_saveThread.IsAlive

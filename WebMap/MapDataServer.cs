@@ -372,14 +372,20 @@ namespace WebMap
                     int day = 0;
                     float dayFraction = 0f;
                     bool isNight = false;
+                    string weather = "";
                     if (EnvMan.instance != null)
                     {
                         day = EnvMan.instance.GetCurrentDay();
                         dayFraction = EnvMan.instance.GetDayFraction();
                         isNight = EnvMan.IsNight();
+                        // Server's current EnvSetup — per-biome weather isn't a
+                        // global concept in Valheim, but this is what clients
+                        // sync to and is a reasonable "headline" for the dash.
+                        EnvSetup env = EnvMan.instance.GetCurrentEnvironment();
+                        if (env != null) weather = env.m_name ?? "";
                     }
                     string worldTimeJson = FormattableString.Invariant(
-                        $"{{\"day\":{day},\"dayFraction\":{dayFraction:0.####},\"isNight\":{(isNight ? "true" : "false")}}}");
+                        $"{{\"day\":{day},\"dayFraction\":{dayFraction:0.####},\"isNight\":{(isNight ? "true" : "false")},\"weather\":\"{weather.Replace("\\", "\\\\").Replace("\"", "\\\"")}\"}}");
                     textBytes = Encoding.UTF8.GetBytes(worldTimeJson);
                     res.ContentLength64 = textBytes.Length;
                     res.Close(textBytes, true);

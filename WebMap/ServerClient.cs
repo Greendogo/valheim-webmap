@@ -30,33 +30,29 @@ namespace WebMap
             }
         }
 
-        [HarmonyPatch(typeof(ZNet), nameof(ZNet.SendPlayerList))]
+        // Valheim 1.0 moved player-list serialization out of SendPlayerList into
+        // WritePlayerInfo(List<PlayerInfo>), which returns a finished package
+        // (int count, then one entry per player). Postfix it: bump the count
+        // and append the server entry at the end.
+        [HarmonyPatch(typeof(ZNet), nameof(ZNet.WritePlayerInfo))]
         public class AddExtraPlayer
         {
-            static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+            static void Postfix(ZNet __instance, ZPackage __result)
             {
-                return new CodeMatcher(instructions).End().MatchStartBackwards(new CodeMatch(OpCodes.Ldfld, AccessTools.Field(typeof(ZNet), nameof(ZNet.m_players))))
-                  .Advance(-1)
-                  .InsertAndAdvance(new CodeInstruction(OpCodes.Ldarg_0))
-                  .InsertAndAdvance(new CodeInstruction(OpCodes.Ldloc_0))
-                  .InsertAndAdvance(new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(AddExtraPlayer), nameof(AddServer))))
-                  .InstructionEnumeration();
-            }
-
-            static void AddServer(ZNet net, ZPackage pkg)
-            {
-                // This is needed in case multiple mods are adding extra players.
-                var prev = pkg.GetPos();
-                pkg.SetPos(0);
-                if (IsExtraPlayerAdded(net, pkg.ReadInt()))
+                try
                 {
-                  pkg.SetPos(prev);
+                    if (__result == null) return;
+                    __result.SetPos(0);
+                    // This is needed in case multiple mods are adding extra players.
+                    if (IsExtraPlayerAdded(__instance, __result.ReadInt())) return;
+                    __result.SetPos(0);
+                    __result.Write(__instance.m_players.Count + 1);
+                    __result.SetPos(__result.Size());
+                    Write(__result);
                 }
-                else
+                catch (Exception e)
                 {
-                  pkg.SetPos(0);
-                  pkg.Write(net.m_players.Count + 1);
-                  Write(pkg);
+                    ZLog.LogWarning($"WebMap: AddExtraPlayer failed: {e}");
                 }
             }
 
@@ -68,8 +64,7 @@ namespace WebMap
             m_name = "Server",
             // Receiving chat messages requires a valid character ID.
             m_characterID = new ZDOID(ZDOMan.GetSessionID(), uint.MaxValue),
-            m_userInfo = new() { m_id = new(ZNet.instance.m_steamPlatform, GetId()), m_displayName = "Server" },
-            m_serverAssignedDisplayName = "Server",
+            m_userInfo = new() { m_id = new(ZNet.instance.m_steamPlatform, GetId()), m_displayName = "Server", m_serverAssignedDisplayName = "Server", m_playfabId = "" },
             m_publicPosition = false,
             m_position = Vector3.zero,
         };
@@ -92,7 +87,8 @@ namespace WebMap
             pkg.Write(Client.m_characterID);
             pkg.Write(Client.m_userInfo.m_id.ToString());
             pkg.Write(Client.m_userInfo.m_displayName);
-            pkg.Write(Client.m_serverAssignedDisplayName);
+            pkg.Write(Client.m_userInfo.m_serverAssignedDisplayName);
+            pkg.Write(Client.m_userInfo.m_playfabId);
             // Server position is never public.
             pkg.Write(false);
         }

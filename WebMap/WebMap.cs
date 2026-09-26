@@ -89,7 +89,7 @@ namespace WebMap
 
         public void NotifyOnline()
         {
-            discordWebHook.SendMessage($"🎮 **{serverInfo["serverName"]}** is *online* 🟢\n💻 {AccessTools.Method(typeof(ZNet), "GetServerIP").Invoke(ZNet.instance, new object[] { })}:{ZNet.instance.m_hostPort}\n🔑 {serverInfo["password"]}\n🗺 {WebMapConfig.URL}");
+            discordWebHook.SendMessage($"🎮 **{serverInfo["serverName"]}** is *online* 🟢\n💻 {AccessTools.Method(typeof(ZNet), "GetServerIP").Invoke(ZNet.instance, new object[] { })}:{ZNet.instance.GetHostPort()}\n🔑 {serverInfo["password"]}\n🗺 {WebMapConfig.URL}");
         }
 
         public void NotifyOffline()
@@ -360,6 +360,18 @@ namespace WebMap
 
             private static void Postfix(ZoneSystem __instance)
             {
+                try
+                {
+                    BuildMap();
+                }
+                catch (Exception e)
+                {
+                    ZLog.LogError($"WebMap: ZoneSystem.Start patch failed: {e}");
+                }
+            }
+
+            private static void BuildMap()
+            {
                 WebMap.instance.NewWorld();
 
                 if (mapDataServer.mapImageData != null)
@@ -454,7 +466,21 @@ namespace WebMap
         [HarmonyPatch(typeof(ZoneSystem), nameof(ZoneSystem.Load))]
         private class ZoneSystemLoadPatch
         {
+            // Runs inside ZNet.LoadWorld: an exception escaping here makes
+            // Valheim abort the world load and exit, so never let one out.
             private static void Postfix()
+            {
+                try
+                {
+                    StartWebMap();
+                }
+                catch (Exception e)
+                {
+                    ZLog.LogError($"WebMap: ZoneSystem.Load patch failed: {e}");
+                }
+            }
+
+            private static void StartWebMap()
             {
                 ZoneSystem.LocationInstance startLocation;
                 if (ZoneSystem.instance.FindClosestLocation("StartTemple", Vector3.zero, out startLocation))
@@ -468,9 +494,18 @@ namespace WebMap
                     ZLog.LogError("WebMap: failed to find starting point");
                 }
 
-                WebMap.instance.Online();
-
                 mapDataServer.ListenAsync();
+
+                try
+                {
+                    WebMap.instance.Online();
+                }
+                catch (Exception e)
+                {
+                    ZLog.LogError($"WebMap: Online() failed: {e}");
+                }
+
+                ZLog.Log("WebMap: world loaded");
             }
         }
 
@@ -488,8 +523,15 @@ namespace WebMap
         {
             private static void Postfix()
             {
-                mapDataServer.Stop();
-                WebMap.instance.NotifyOffline();
+                try
+                {
+                    mapDataServer?.Stop();
+                    WebMap.instance.NotifyOffline();
+                }
+                catch (Exception e)
+                {
+                    ZLog.LogError($"WebMap: ZNet.Shutdown patch failed: {e}");
+                }
             }
         }
 
@@ -498,7 +540,14 @@ namespace WebMap
         {
             private static void Postfix(bool server, bool openServer, bool publicServer, string serverName, string password, World world)
             {
-                WebMap.instance.SetServerInfo(openServer, publicServer, serverName, password, world.m_name, world.m_seedName);
+                try
+                {
+                    WebMap.instance.SetServerInfo(openServer, publicServer, serverName, password, world.m_name, world.m_seedName);
+                }
+                catch (Exception e)
+                {
+                    ZLog.LogError($"WebMap: ZNet.SetServer patch failed: {e}");
+                }
             }
         }
 
@@ -507,9 +556,16 @@ namespace WebMap
         {
             private static void Prefix(ref ZNetPeer peer)
             {
-                if (!peer.m_server && !string.IsNullOrEmpty(peer.m_playerName))
+                try
                 {
-                    WebMap.instance.NotifyLeave(peer);
+                    if (!peer.m_server && !string.IsNullOrEmpty(peer.m_playerName))
+                    {
+                        WebMap.instance.NotifyLeave(peer);
+                    }
+                }
+                catch (Exception e)
+                {
+                    ZLog.LogError($"WebMap: ZNet.Disconnect patch failed: {e}");
                 }
             }
         }
@@ -519,9 +575,16 @@ namespace WebMap
         {
             private static void Postfix(ZNetPeer peer)
             {
-                if (!peer.m_server && !string.IsNullOrEmpty(peer.m_playerName))
+                try
                 {
-                    WebMap.instance.NotifyJoin(peer);
+                    if (!peer.m_server && !string.IsNullOrEmpty(peer.m_playerName))
+                    {
+                        WebMap.instance.NotifyJoin(peer);
+                    }
+                }
+                catch (Exception e)
+                {
+                    ZLog.LogError($"WebMap: ZRoutedRpc.AddPeer patch failed: {e}");
                 }
             }
         }
@@ -532,6 +595,18 @@ namespace WebMap
             private static string[] ignoreRpc = { "DestroyZDO", "SetEvent", "OnTargeted", "Step" };
 
             private static void Postfix(ref ZRoutedRpc __instance, ref RoutedRPCData data)
+            {
+                try
+                {
+                    HandleRpc(data);
+                }
+                catch (Exception e)
+                {
+                    ZLog.LogError($"WebMap: HandleRoutedRPC patch failed: {e}");
+                }
+            }
+
+            private static void HandleRpc(RoutedRPCData data)
             {
                 string methodName = StringExtensionMethods_Patch.GetStableHashName(data?.m_methodHash ?? 0);
                 if (Array.Exists(ignoreRpc, x => x == methodName)) // Ignore noise

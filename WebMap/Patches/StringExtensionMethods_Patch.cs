@@ -7,6 +7,9 @@ namespace WebMap.Patches
     [HarmonyPatch]
     internal class StringExtensionMethods_Patch
     {
+        // GetStableHashCode / GetHash are called from Valheim's worker threads
+        // (1.0 saves chunks in the background), so every cache access is locked.
+        private static readonly object hashLock = new object();
         internal static Dictionary<int, string> stablehashNames = new Dictionary<int, string>();
         internal static Dictionary<int, string> stablehashNamesAnim = new Dictionary<int, string>();
         internal static Dictionary<string, int> stablehashLookup = new Dictionary<string, int>();
@@ -16,9 +19,12 @@ namespace WebMap.Patches
         [HarmonyPrefix]
         public static bool GetStableHashCode(string str, ref int __result)
         {
-            if (stablehashLookup.TryGetValue(str, out __result))
+            lock (hashLock)
             {
-                return false;
+                if (stablehashLookup.TryGetValue(str, out __result))
+                {
+                    return false;
+                }
             }
 
             /////////////////////////////////////////////////////////////////
@@ -38,8 +44,11 @@ namespace WebMap.Patches
             __result = num + num2 * 1566083941;
             /////////////////////////////////////////////////////////////////
 
-            stablehashNames[__result] = str;
-            stablehashLookup[str] = __result;
+            lock (hashLock)
+            {
+                stablehashNames[__result] = str;
+                stablehashLookup[str] = __result;
+            }
 
             if (WebMapConfig.DEBUG)
             {
@@ -53,13 +62,9 @@ namespace WebMap.Patches
         [HarmonyPrefix]
         public static void GetAnimHash(string name, ref int __result, ref bool __runOriginal)
         {
-            if (stablehashLookupAnim.TryGetValue(name, out __result))
+            lock (hashLock)
             {
-                __runOriginal = false;
-            }
-            else
-            {
-                __runOriginal = true;
+                __runOriginal = !stablehashLookupAnim.TryGetValue(name, out __result);
             }
         }
 
@@ -69,8 +74,11 @@ namespace WebMap.Patches
         {
             if (__runOriginal)
             {
-                stablehashNamesAnim[__result] = name;
-                stablehashLookupAnim[name] = __result;
+                lock (hashLock)
+                {
+                    stablehashNamesAnim[__result] = name;
+                    stablehashLookupAnim[name] = __result;
+                }
 
                 if (WebMapConfig.DEBUG)
                 {
@@ -82,14 +90,17 @@ namespace WebMap.Patches
         public static string GetStableHashName(int code)
         {
             string str;
-            if (stablehashNames.TryGetValue(code, out str))
+            lock (hashLock)
             {
-                return str;
-            }
+                if (stablehashNames.TryGetValue(code, out str))
+                {
+                    return str;
+                }
 
-            if (stablehashNamesAnim.TryGetValue(code - 438569, out str))
-            {
-                return str + $" (A)";
+                if (stablehashNamesAnim.TryGetValue(code - 438569, out str))
+                {
+                    return str + $" (A)";
+                }
             }
 
             return code.ToString();

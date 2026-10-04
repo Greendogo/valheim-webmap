@@ -38,15 +38,38 @@ namespace WebMap
 
     public class WebSocketHandler : WebSocketBehavior
     {
+        public WebSocketHandler()
+        {
+            // websocket-sharp accepts permessage-deflate (browsers and Node
+            // both offer it) but then sends every message after the first on
+            // a connection as an empty payload, so live updates silently stop.
+            // Refuse extensions so frames go out uncompressed.
+            IgnoreExtensions = true;
+        }
+
         protected override void OnOpen()
         {
             string endpoint = Context.Headers.Get("X-Forwarded-For");
             if (endpoint.IsNullOrEmpty())
             {
                 endpoint = Context.UserEndPoint.ToString();
+                // Direct connections without a proxy header come from the
+                // Docker network (the admin sidecar's roster feed), not
+                // visitors — don't log every one.
+                if (IsPrivateDockerAddress(Context.UserEndPoint.Address))
+                {
+                    base.OnOpen();
+                    return;
+                }
             }
             ZLog.Log("WebMap: new visitor connected from " + endpoint);
             base.OnOpen();
+        }
+
+        private static bool IsPrivateDockerAddress(System.Net.IPAddress address)
+        {
+            byte[] b = address.MapToIPv4().GetAddressBytes();
+            return b[0] == 172 && b[1] >= 16 && b[1] <= 31;
         }
 
         // protected override void OnClose(CloseEventArgs e) {
